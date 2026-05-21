@@ -1,5 +1,5 @@
 const YEARS = Array.from({ length: 11 }, (_, index) => 2025 + index);
-const STORAGE_KEY = "financial-dashboard-model-v8";
+const STORAGE_KEY = "financial-dashboard-model-v9";
 const CPI_SERIES = {
   US: { id: "CUUR0000SA0", label: "US CPI-U" },
   CA: { id: "CUURS49BSA0", label: "CA CPI-U proxy (San Francisco-Oakland-Hayward)" },
@@ -140,13 +140,13 @@ const defaultModel = {
   applyPartner: true,
   applyLifeEvents: true,
   scenarios: [
-    { name: "Downside", salaryGrowth: 0.07, expenses: 1.05, returnAdj: -0.02 },
-    { name: "Base", salaryGrowth: 0.10, expenses: 1, returnAdj: 0 },
+    { name: "Downside", salaryGrowth: 0.10, expenses: 1.05, returnAdj: -0.02 },
+    { name: "Base", salaryGrowth: 0.12, expenses: 1, returnAdj: 0 },
     { name: "Upside", salaryGrowth: 0.15, expenses: 0.95, returnAdj: 0.02 },
   ],
   annual: {
-    baseGrossSalary: 520000,
-    salaryGrowth: 0.10,
+    baseGrossSalary: 540000,
+    salaryGrowth: 0.12,
     baseCoreExpenses: 150000,
     partnerCf: [135000, 135000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     career: ["Lead", "Lead", "Principal", "Principal", "Head", "Head", "Head", "Dir", "Dir", "Dir", "Senior Director"],
