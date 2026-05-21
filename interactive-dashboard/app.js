@@ -132,6 +132,7 @@ const defaultModel = {
   houseDownPaymentPct: 0.20,
   mortgageTermYears: 30,
   mortgageInterestRate: 0.06,
+  propertyTaxRate: 0.0118,
   taxFilingStatus: "single",
   cpiSource: "US",
   cpi: 0.04,
@@ -183,6 +184,7 @@ const els = {
   houseDownPaymentPct: document.querySelector("#houseDownPaymentPct"),
   mortgageTermYears: document.querySelector("#mortgageTermYears"),
   mortgageInterestRate: document.querySelector("#mortgageInterestRate"),
+  propertyTaxRate: document.querySelector("#propertyTaxRate"),
   taxFilingStatus: document.querySelector("#taxFilingStatus"),
   cpiSource: document.querySelector("#cpiSource"),
   cpi: document.querySelector("#cpi"),
@@ -242,6 +244,7 @@ function normalizeModel(raw) {
   if (!Number.isFinite(Number(next.houseDownPaymentPct))) next.houseDownPaymentPct = defaultModel.houseDownPaymentPct;
   if (!Number.isFinite(Number(next.mortgageTermYears))) next.mortgageTermYears = defaultModel.mortgageTermYears;
   if (!Number.isFinite(Number(next.mortgageInterestRate))) next.mortgageInterestRate = defaultModel.mortgageInterestRate;
+  if (!Number.isFinite(Number(next.propertyTaxRate))) next.propertyTaxRate = defaultModel.propertyTaxRate;
   next.scenarios = next.scenarios.map((scenario, index) => ({
     ...scenario,
     salaryGrowth: Number.isFinite(Number(scenario.salaryGrowth)) ? Number(scenario.salaryGrowth) : defaultModel.scenarios[index]?.salaryGrowth || defaultModel.annual.salaryGrowth,
@@ -471,8 +474,11 @@ function calculateProjection() {
       mortgageBalance -= mortgagePrincipal;
       yearsPaid += 1;
     }
+    const propertyTaxes = year >= numberValue(model.housePurchaseYear)
+      ? (beginningRealEstateAssets + realEstateGrowth + downPayment) * numberValue(model.propertyTaxRate)
+      : 0;
 
-    const savingsInflow = preHousingSavingsInflow - downPayment - mortgagePayment;
+    const savingsInflow = preHousingSavingsInflow - downPayment - mortgagePayment - propertyTaxes;
     const totalInvestableCf = savingsInflow;
     investmentAssetsUsd = beginningInvestmentAssets + capitalGains + savingsInflow;
     realEstateAssetsUsd = beginningRealEstateAssets + realEstateGrowth + downPayment + mortgagePrincipal;
@@ -504,6 +510,7 @@ function calculateProjection() {
       mortgagePayment,
       mortgageInterest,
       mortgagePrincipal,
+      propertyTaxes,
       mortgageBalance,
       beginningInvestmentAssets,
       beginningRealEstateAssets,
@@ -588,6 +595,7 @@ function renderControls() {
   els.houseDownPaymentPct.value = formatPercentInput(model.houseDownPaymentPct);
   els.mortgageTermYears.value = formatInputNumber(model.mortgageTermYears);
   els.mortgageInterestRate.value = formatPercentInput(model.mortgageInterestRate);
+  els.propertyTaxRate.value = formatPercentInput(model.propertyTaxRate);
   els.applyPartner.checked = model.applyPartner;
   els.applyLifeEvents.checked = model.applyLifeEvents;
   els.refreshStatus.textContent = model.lastRefresh || "Refresh pulls USD/CAD from Frankfurter, CPI from BLS, and mortgage rates from FRED/Freddie Mac PMMS.";
@@ -658,6 +666,7 @@ function renderAnnualInputs(projection) {
   addRow("Mortgage payment", projection.map((row) => formulaCell(row.mortgagePayment, money)));
   addRow("Mortgage interest", projection.map((row) => formulaCell(row.mortgageInterest, money)));
   addRow("Mortgage principal", projection.map((row) => formulaCell(row.mortgagePrincipal, money)));
+  addRow("Property taxes", projection.map((row) => formulaCell(row.propertyTaxes, money)));
   addRow("Ending mortgage balance", projection.map((row) => formulaCell(row.mortgageBalance, money)));
 }
 
@@ -765,6 +774,7 @@ function renderProjectionTable(projection) {
     ["Mortgage payment", "mortgagePayment", money],
     ["Mortgage interest", "mortgageInterest", money],
     ["Mortgage principal", "mortgagePrincipal", money],
+    ["Property taxes", "propertyTaxes", money],
     ["Savings inflow", "savingsInflow", money],
     ["Investment gains", "capitalGains", money],
     ["Real estate growth", "realEstateGrowth", money],
@@ -1260,6 +1270,9 @@ function wireEvents() {
   });
   els.mortgageInterestRate.addEventListener("change", () => {
     stagePercentInput(els.mortgageInterestRate, (value) => { model.mortgageInterestRate = value; });
+  });
+  els.propertyTaxRate.addEventListener("change", () => {
+    stagePercentInput(els.propertyTaxRate, (value) => { model.propertyTaxRate = value; });
   });
   els.applyPartner.addEventListener("change", () => {
     model.applyPartner = els.applyPartner.checked;
