@@ -41,6 +41,7 @@
                 <span id="modelStatus" class="status-pill">OK</span>
               </div>
               <div class="control-grid">
+                <div class="control-section-title">Core model</div>
                 <label>
                   <span>Scenario</span>
                   <select id="scenario"></select>
@@ -55,10 +56,6 @@
                 <label>
                   <span>USD per CAD</span>
                   <input id="cadUsdFx" type="number" step="0.01" min="0" />
-                </label>
-                <label>
-                  <span>2025 starting assets USD</span>
-                  <input id="startingAssetsUsd" type="text" inputmode="decimal" />
                 </label>
                 <label>
                   <span>2025 base gross salary</span>
@@ -95,6 +92,44 @@
                     <option value="headOfHousehold">Head of household</option>
                   </select>
                 </label>
+
+                <div class="control-section-title">Asset mix</div>
+                <label>
+                  <span>2025 investment assets USD</span>
+                  <input id="startingInvestmentAssetsUsd" type="text" inputmode="decimal" />
+                </label>
+                <label>
+                  <span>2025 real estate assets USD</span>
+                  <input id="startingRealEstateAssetsUsd" type="text" inputmode="decimal" />
+                </label>
+                <label>
+                  <span>Real estate growth</span>
+                  <input id="realEstateGrowth" type="text" inputmode="decimal" />
+                </label>
+
+                <div class="control-section-title">Home purchase and mortgage</div>
+                <label>
+                  <span>House purchase year</span>
+                  <input id="housePurchaseYear" type="number" step="1" min="2025" max="2035" />
+                </label>
+                <label>
+                  <span>House value</span>
+                  <input id="houseValue" type="text" inputmode="decimal" />
+                </label>
+                <label>
+                  <span>Down payment</span>
+                  <input id="houseDownPaymentPct" type="text" inputmode="decimal" />
+                </label>
+                <label>
+                  <span>Mortgage duration</span>
+                  <input id="mortgageTermYears" type="number" step="1" min="1" />
+                </label>
+                <label>
+                  <span>Mortgage interest rate</span>
+                  <input id="mortgageInterestRate" type="text" inputmode="decimal" />
+                </label>
+
+                <div class="control-section-title">Toggles</div>
                 <div class="toggle-pair">
                   <label class="toggle-row">
                     <span>Life events</span>

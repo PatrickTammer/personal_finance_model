@@ -1,5 +1,5 @@
 const YEARS = Array.from({ length: 11 }, (_, index) => 2025 + index);
-const STORAGE_KEY = "financial-dashboard-model-v4";
+const STORAGE_KEY = "financial-dashboard-model-v5";
 const CPI_SERIES = {
   US: { id: "CUUR0000SA0", label: "US CPI-U" },
   CA: { id: "CUURS49BSA0", label: "CA CPI-U proxy (San Francisco-Oakland-Hayward)" },
@@ -27,14 +27,14 @@ const FICA_TAX = {
     headOfHousehold: 200000,
   },
 };
-const WEALTH_PERCENTILE_SOURCE = "https://www.richmondfed.org/publications/research/economic_brief/2023/eb_23-39";
+const WEALTH_PERCENTILE_SOURCE = "https://www.freefincalc.net/net-worth-calculator";
+const WEALTH_PERCENTILE_OFFICIAL_SOURCE = "https://www.federalreserve.gov/releases/z1/dataviz/dfa/";
 const WEALTH_PERCENTILES = [
-  { percentile: 10, netWorth: 1 },
-  { percentile: 25, netWorth: 20856 },
-  { percentile: 50, netWorth: 162350 },
-  { percentile: 75, netWorth: 553100 },
-  { percentile: 90, netWorth: 1559240 },
-  { percentile: 99, netWorth: 11640000 },
+  { percentile: 25, netWorth: 27100 },
+  { percentile: 50, netWorth: 192700 },
+  { percentile: 75, netWorth: 658900 },
+  { percentile: 90, netWorth: 1920758 },
+  { percentile: 99, netWorth: 14000000 },
 ];
 const TAX_BRACKETS = {
   federal: {
@@ -123,8 +123,15 @@ const defaultModel = {
   scenario: "Base",
   displayCurrency: "USD",
   cadUsdFx: 0.73,
-  startingAssetsUsd: 2000000,
+  startingInvestmentAssetsUsd: 2000000,
+  startingRealEstateAssetsUsd: 0,
   investmentReturn: 0.10,
+  realEstateGrowth: 0.04,
+  housePurchaseYear: 2028,
+  houseValue: 2000000,
+  houseDownPaymentPct: 0.20,
+  mortgageTermYears: 30,
+  mortgageInterestRate: 0.06,
   taxFilingStatus: "single",
   cpiSource: "US",
   cpi: 0.04,
@@ -148,8 +155,8 @@ const defaultModel = {
     { event: "Sell cottage", enabled: true, type: "One-time", start: 2028, end: 2028, amount: 86956.52, notes: "Inflow" },
     { event: "Wedding", enabled: true, type: "One-time", start: 2026, end: 2026, amount: -15000, notes: "One-time cost" },
     { event: "Buy car", enabled: true, type: "One-time", start: 2026, end: 2026, amount: -30000, notes: "One-time cost" },
-    { event: "House down payment", enabled: true, type: "One-time", start: 2028, end: 2028, amount: -400000, notes: "Purchase cash flow" },
-    { event: "House mortgage delta vs. rent", enabled: true, type: "Recurring", start: 2028, end: 2035, amount: -30000, notes: "Recurring cost" },
+    { event: "House down payment", enabled: false, type: "One-time", start: 2028, end: 2028, amount: 0, notes: "Modeled in mortgage inputs" },
+    { event: "House mortgage delta vs. rent", enabled: false, type: "Recurring", start: 2028, end: 2035, amount: 0, notes: "Modeled in mortgage inputs" },
     { event: "1st kid", enabled: true, type: "Recurring", start: 2029, end: 2035, amount: -30000, notes: "Recurring child cost" },
     { event: "2nd kid", enabled: true, type: "Recurring", start: 2031, end: 2035, amount: -30000, notes: "Recurring child cost" },
   ],
@@ -165,10 +172,17 @@ const els = {
   scenario: document.querySelector("#scenario"),
   displayCurrency: document.querySelector("#displayCurrency"),
   cadUsdFx: document.querySelector("#cadUsdFx"),
-  startingAssetsUsd: document.querySelector("#startingAssetsUsd"),
+  startingInvestmentAssetsUsd: document.querySelector("#startingInvestmentAssetsUsd"),
+  startingRealEstateAssetsUsd: document.querySelector("#startingRealEstateAssetsUsd"),
   baseGrossSalary: document.querySelector("#baseGrossSalary"),
   salaryGrowth: document.querySelector("#salaryGrowth"),
   investmentReturn: document.querySelector("#investmentReturn"),
+  realEstateGrowth: document.querySelector("#realEstateGrowth"),
+  housePurchaseYear: document.querySelector("#housePurchaseYear"),
+  houseValue: document.querySelector("#houseValue"),
+  houseDownPaymentPct: document.querySelector("#houseDownPaymentPct"),
+  mortgageTermYears: document.querySelector("#mortgageTermYears"),
+  mortgageInterestRate: document.querySelector("#mortgageInterestRate"),
   taxFilingStatus: document.querySelector("#taxFilingStatus"),
   cpiSource: document.querySelector("#cpiSource"),
   cpi: document.querySelector("#cpi"),
@@ -214,10 +228,20 @@ function normalizeModel(raw) {
     next.annual.salaryGrowth = growthValues.length ? growthValues.reduce((sum, value) => sum + Number(value), 0) / growthValues.length : defaultModel.annual.salaryGrowth;
   }
   if (!TAX_FILING_STATUSES[next.taxFilingStatus]) next.taxFilingStatus = defaultModel.taxFilingStatus;
-  if (!Number.isFinite(Number(next.startingAssetsUsd))) {
-    const assetsCad = (raw?.assets || defaultModel.assets).reduce((sum, asset) => sum + numberValue(asset.value), 0);
-    next.startingAssetsUsd = assetsCad * numberValue(next.cadUsdFx || defaultModel.cadUsdFx);
+  if (!Number.isFinite(Number(next.startingInvestmentAssetsUsd)) && Number.isFinite(Number(raw?.startingAssetsUsd))) {
+    next.startingInvestmentAssetsUsd = numberValue(raw.startingAssetsUsd);
   }
+  if (!Number.isFinite(Number(next.startingInvestmentAssetsUsd))) {
+    const assetsCad = (raw?.assets || defaultModel.assets).reduce((sum, asset) => sum + numberValue(asset.value), 0);
+    next.startingInvestmentAssetsUsd = assetsCad * numberValue(next.cadUsdFx || defaultModel.cadUsdFx);
+  }
+  if (!Number.isFinite(Number(next.startingRealEstateAssetsUsd))) next.startingRealEstateAssetsUsd = 0;
+  if (!Number.isFinite(Number(next.realEstateGrowth))) next.realEstateGrowth = defaultModel.realEstateGrowth;
+  if (!Number.isFinite(Number(next.housePurchaseYear))) next.housePurchaseYear = defaultModel.housePurchaseYear;
+  if (!Number.isFinite(Number(next.houseValue))) next.houseValue = defaultModel.houseValue;
+  if (!Number.isFinite(Number(next.houseDownPaymentPct))) next.houseDownPaymentPct = defaultModel.houseDownPaymentPct;
+  if (!Number.isFinite(Number(next.mortgageTermYears))) next.mortgageTermYears = defaultModel.mortgageTermYears;
+  if (!Number.isFinite(Number(next.mortgageInterestRate))) next.mortgageInterestRate = defaultModel.mortgageInterestRate;
   next.lifeEvents = (raw?.lifeEvents || next.lifeEvents).map((event, index) => ({
     ...clone(defaultModel.lifeEvents[index] || defaultModel.lifeEvents.at(-1)),
     ...event,
@@ -359,18 +383,32 @@ function calculateFicaTax(income, filingStatus) {
   return socialSecurityTax + medicareTax + additionalMedicareTax;
 }
 
+function annualMortgagePayment(principal, annualRate, years) {
+  const balance = Math.max(0, numberValue(principal));
+  const rate = Math.max(0, numberValue(annualRate));
+  const periods = Math.max(1, numberValue(years));
+  if (!balance) return 0;
+  if (!rate) return balance / periods;
+  return (balance * rate) / (1 - (1 + rate) ** -periods);
+}
+
 function selectedScenario() {
   return model.scenarios.find((scenario) => scenario.name === model.scenario) || model.scenarios[1];
 }
 
 function calculateProjection() {
   const scenario = selectedScenario();
-  const openingUsd = numberValue(model.startingAssetsUsd);
-  let beginningAssetsUsd = openingUsd;
+  let investmentAssetsUsd = numberValue(model.startingInvestmentAssetsUsd);
+  let realEstateAssetsUsd = numberValue(model.startingRealEstateAssetsUsd);
+  let mortgageBalance = 0;
+  let yearsPaid = 0;
   let priorGrossSalary = 0;
   let priorCoreExpenses = 0;
 
   return YEARS.map((year, index) => {
+    const beginningInvestmentAssets = investmentAssetsUsd;
+    const beginningRealEstateAssets = realEstateAssetsUsd;
+    const beginningNetAssets = beginningInvestmentAssets + beginningRealEstateAssets;
     const baseGrossSalary = index === 0
       ? numberValue(model.annual.baseGrossSalary)
       : priorGrossSalary * (1 + numberValue(model.annual.salaryGrowth));
@@ -401,15 +439,35 @@ function calculateProjection() {
       : 0;
     const partnerCf = model.applyPartner ? model.annual.partnerCf[index] : 0;
     const ptNetSavings = netIncome - coreExpenses;
-    const savingsInflow = ptNetSavings + partnerCf + lifeEvents;
+    const preHousingSavingsInflow = ptNetSavings + partnerCf + lifeEvents;
     const patInvestableCf = ptNetSavings + lifeEvents;
-    const totalInvestableCf = savingsInflow;
-    const savingsRate = grossSalary === 0 ? 0 : savingsInflow / grossSalary;
+    const savingsRate = grossSalary === 0 ? 0 : preHousingSavingsInflow / grossSalary;
     const returnRate = model.investmentReturn + scenario.returnAdj;
-    const capitalGains = beginningAssetsUsd * returnRate;
-    const liquidUsd = beginningAssetsUsd + capitalGains + savingsInflow;
-    const openingAssetsUsd = beginningAssetsUsd;
-    beginningAssetsUsd = liquidUsd;
+    const capitalGains = beginningInvestmentAssets * returnRate;
+    const realEstateGrowth = beginningRealEstateAssets * numberValue(model.realEstateGrowth);
+
+    const housePurchase = year === numberValue(model.housePurchaseYear);
+    const houseValue = housePurchase ? numberValue(model.houseValue) : 0;
+    const downPayment = housePurchase ? houseValue * numberValue(model.houseDownPaymentPct) : 0;
+    if (housePurchase) mortgageBalance += Math.max(0, houseValue - downPayment);
+
+    const mortgageEligible = mortgageBalance > 0 && year >= numberValue(model.housePurchaseYear) && yearsPaid < numberValue(model.mortgageTermYears);
+    const scheduledMortgagePayment = mortgageEligible
+      ? annualMortgagePayment(mortgageBalance, model.mortgageInterestRate, numberValue(model.mortgageTermYears) - yearsPaid)
+      : 0;
+    const mortgageInterest = mortgageEligible ? mortgageBalance * numberValue(model.mortgageInterestRate) : 0;
+    const mortgagePrincipal = mortgageEligible ? Math.min(mortgageBalance, Math.max(0, scheduledMortgagePayment - mortgageInterest)) : 0;
+    const mortgagePayment = mortgageInterest + mortgagePrincipal;
+    if (mortgageEligible) {
+      mortgageBalance -= mortgagePrincipal;
+      yearsPaid += 1;
+    }
+
+    const savingsInflow = preHousingSavingsInflow - downPayment - mortgagePayment;
+    const totalInvestableCf = savingsInflow;
+    investmentAssetsUsd = beginningInvestmentAssets + capitalGains + savingsInflow;
+    realEstateAssetsUsd = beginningRealEstateAssets + realEstateGrowth + downPayment + mortgagePrincipal;
+    const liquidUsd = investmentAssetsUsd + realEstateAssetsUsd;
     const liquidCad = liquidUsd / model.cadUsdFx;
     const realUsd = liquidUsd / (1 + model.cpi) ** (year - YEARS[0]);
 
@@ -429,9 +487,20 @@ function calculateProjection() {
       ptNetSavings,
       partnerCf,
       patInvestableCf,
+      preHousingSavingsInflow,
       savingsInflow,
       capitalGains,
-      openingAssetsUsd,
+      realEstateGrowth,
+      downPayment,
+      mortgagePayment,
+      mortgageInterest,
+      mortgagePrincipal,
+      mortgageBalance,
+      beginningInvestmentAssets,
+      beginningRealEstateAssets,
+      openingAssetsUsd: beginningNetAssets,
+      investmentAssetsUsd,
+      realEstateAssetsUsd,
       totalInvestableCf,
       savingsRate,
       liquidCad,
@@ -494,7 +563,6 @@ function renderControls() {
   els.scenario.value = model.scenario;
   els.displayCurrency.value = model.displayCurrency;
   els.cadUsdFx.value = formatInputNumber(model.cadUsdFx);
-  els.startingAssetsUsd.value = formatCurrencyInput(model.startingAssetsUsd, "USD");
   els.baseGrossSalary.value = formatCurrencyInput(model.annual.baseGrossSalary, "USD");
   els.salaryGrowth.value = formatPercentInput(model.annual.salaryGrowth);
   els.investmentReturn.value = formatPercentInput(model.investmentReturn);
@@ -502,6 +570,14 @@ function renderControls() {
   els.cpiSource.value = model.cpiSource;
   els.cpi.value = formatPercentInput(model.cpi);
   els.baseCoreExpenses.value = formatCurrencyInput(model.annual.baseCoreExpenses, "USD");
+  els.startingInvestmentAssetsUsd.value = formatCurrencyInput(model.startingInvestmentAssetsUsd, "USD");
+  els.startingRealEstateAssetsUsd.value = formatCurrencyInput(model.startingRealEstateAssetsUsd, "USD");
+  els.realEstateGrowth.value = formatPercentInput(model.realEstateGrowth);
+  els.housePurchaseYear.value = formatInputNumber(model.housePurchaseYear);
+  els.houseValue.value = formatCurrencyInput(model.houseValue, "USD");
+  els.houseDownPaymentPct.value = formatPercentInput(model.houseDownPaymentPct);
+  els.mortgageTermYears.value = formatInputNumber(model.mortgageTermYears);
+  els.mortgageInterestRate.value = formatPercentInput(model.mortgageInterestRate);
   els.applyPartner.checked = model.applyPartner;
   els.applyLifeEvents.checked = model.applyLifeEvents;
   els.refreshStatus.textContent = model.lastRefresh || "Refresh pulls USD/CAD from Frankfurter and CPI from BLS.";
@@ -563,8 +639,16 @@ function renderAnnualInputs(projection) {
   addRow("Life events cash flow", projection.map((row) => formulaCell(row.lifeEvents, money)));
   addRow("Net assets per year", projection.map((row) => formulaCell(row.displayNetAssets, (value) => value.toLocaleString("en-US", { style: "currency", currency: model.displayCurrency, maximumFractionDigits: 2, minimumFractionDigits: 0 }), "highlight")));
   addRow("U.S. wealth percentile", projection.map((row) => formulaCell(row.wealthPercentile, formatPercentile, "highlight-subtle")));
+  addRow("Investment assets", projection.map((row) => formulaCell(row.investmentAssetsUsd, money)));
+  addRow("Real estate assets", projection.map((row) => formulaCell(row.realEstateAssetsUsd, money)));
   addRow("Savings inflow", projection.map((row) => formulaCell(row.savingsInflow, money)));
-  addRow("Capital gains", projection.map((row) => formulaCell(row.capitalGains, money)));
+  addRow("Investment gains", projection.map((row) => formulaCell(row.capitalGains, money)));
+  addRow("Real estate growth", projection.map((row) => formulaCell(row.realEstateGrowth, money)));
+  addRow("House down payment", projection.map((row) => formulaCell(row.downPayment, money)));
+  addRow("Mortgage payment", projection.map((row) => formulaCell(row.mortgagePayment, money)));
+  addRow("Mortgage interest", projection.map((row) => formulaCell(row.mortgageInterest, money)));
+  addRow("Mortgage principal", projection.map((row) => formulaCell(row.mortgagePrincipal, money)));
+  addRow("Ending mortgage balance", projection.map((row) => formulaCell(row.mortgageBalance, money)));
 }
 
 function renderEventsTable() {
@@ -618,7 +702,9 @@ function renderEventsTable() {
 }
 
 function renderAssetsTable() {
-  const startingUsd = numberValue(model.startingAssetsUsd);
+  const investmentUsd = numberValue(model.startingInvestmentAssetsUsd);
+  const realEstateUsd = numberValue(model.startingRealEstateAssetsUsd);
+  const startingUsd = investmentUsd + realEstateUsd;
   const startingCad = startingUsd / numberValue(model.cadUsdFx || defaultModel.cadUsdFx);
   els.assetsTable.innerHTML = `
     <thead><tr><th>Metric</th><th>Currency</th><th>Opening value</th></tr></thead>
@@ -626,7 +712,9 @@ function renderAssetsTable() {
   `;
   const tbody = els.assetsTable.querySelector("tbody");
   tbody.innerHTML = `
-    <tr><td>2025 starting assets</td><td>USD</td><td><strong>${money(startingUsd, 2, "USD")}</strong></td></tr>
+    <tr><td>2025 investment assets</td><td>USD</td><td><strong>${money(investmentUsd, 2, "USD")}</strong></td></tr>
+    <tr><td>2025 real estate assets</td><td>USD</td><td><strong>${money(realEstateUsd, 2, "USD")}</strong></td></tr>
+    <tr><td>2025 total assets</td><td>USD</td><td><strong>${money(startingUsd, 2, "USD")}</strong></td></tr>
     <tr><td>CAD equivalent</td><td>CAD</td><td><strong>${moneyFromCad(startingCad, 2, "CAD")}</strong></td></tr>
     <tr><td>Dashboard display</td><td>${model.displayCurrency}</td><td><strong>${model.displayCurrency === "CAD" ? moneyFromCad(startingCad) : money(startingUsd)}</strong></td></tr>
   `;
@@ -662,10 +750,18 @@ function renderProjectionTable(projection) {
     ["PT net savings rate", "ptNetSavings", money],
     ["Life events cash flow", "lifeEvents", money],
     ["Partner investable CF", "partnerCf", money],
+    ["Pre-housing savings inflow", "preHousingSavingsInflow", money],
+    ["House down payment", "downPayment", money],
+    ["Mortgage payment", "mortgagePayment", money],
+    ["Mortgage interest", "mortgageInterest", money],
+    ["Mortgage principal", "mortgagePrincipal", money],
     ["Savings inflow", "savingsInflow", money],
-    ["Capital gains", "capitalGains", money],
+    ["Investment gains", "capitalGains", money],
+    ["Real estate growth", "realEstateGrowth", money],
+    ["Investment assets", "investmentAssetsUsd", money],
+    ["Real estate assets", "realEstateAssetsUsd", money],
+    ["Ending mortgage balance", "mortgageBalance", money],
     ["Beginning net assets", "openingAssetsUsd", money],
-    ["Total net asset inflow", "totalInvestableCf", money],
     ["Savings rate", "savingsRate", percent],
     [`Liquid assets (${model.displayCurrency})`, "displayNetAssets", (value) => value.toLocaleString("en-US", { style: "currency", currency: model.displayCurrency, maximumFractionDigits: 2, minimumFractionDigits: 0 })],
     ["U.S. wealth percentile", "wealthPercentile", formatPercentile],
@@ -784,12 +880,12 @@ function renderWealthStats() {
 
   els.wealthStatsContent.innerHTML = `
     <div class="bracket-summary">
-      <strong>Reference basis:</strong> U.S. household wealth distribution from the 2022 Survey of Consumer Finances, summarized by the Richmond Fed. Values are 2022 dollars and the model interpolates between published breakpoints to estimate forecast-year percentile.
+      <strong>Reference basis:</strong> 2025/2026 U.S. household net-worth threshold estimates. The latest authoritative SCF microdata is still 2022, while the Federal Reserve Distributional Financial Accounts provide newer quarterly wealth aggregates through 2025. The model interpolates between the breakpoints below.
     </div>
     <article class="bracket-block">
       <div class="bracket-heading">
         <h3>Net Worth Percentile Breakpoints</h3>
-        <a href="${WEALTH_PERCENTILE_SOURCE}" target="_blank" rel="noreferrer">Official source</a>
+        <a href="${WEALTH_PERCENTILE_SOURCE}" target="_blank" rel="noreferrer">Threshold source</a>
       </div>
       <div class="table-wrap compact">
         <table class="bracket-table">
@@ -798,6 +894,7 @@ function renderWealthStats() {
         </table>
       </div>
     </article>
+    <p class="source-note"><a href="${WEALTH_PERCENTILE_OFFICIAL_SOURCE}" target="_blank" rel="noreferrer">Federal Reserve Distributional Financial Accounts reference</a></p>
   `;
 }
 
@@ -1040,9 +1137,6 @@ function wireEvents() {
   els.cadUsdFx.addEventListener("change", () => {
     stageNumberInput(els.cadUsdFx, (value) => { model.cadUsdFx = value; });
   });
-  els.startingAssetsUsd.addEventListener("change", () => {
-    stageCurrencyInput(els.startingAssetsUsd, (value) => { model.startingAssetsUsd = value; });
-  });
   els.baseGrossSalary.addEventListener("change", () => {
     stageCurrencyInput(els.baseGrossSalary, (value) => { model.annual.baseGrossSalary = value; });
   });
@@ -1067,6 +1161,30 @@ function wireEvents() {
   });
   els.baseCoreExpenses.addEventListener("change", () => {
     stageCurrencyInput(els.baseCoreExpenses, (value) => { model.annual.baseCoreExpenses = value; });
+  });
+  els.startingInvestmentAssetsUsd.addEventListener("change", () => {
+    stageCurrencyInput(els.startingInvestmentAssetsUsd, (value) => { model.startingInvestmentAssetsUsd = value; });
+  });
+  els.startingRealEstateAssetsUsd.addEventListener("change", () => {
+    stageCurrencyInput(els.startingRealEstateAssetsUsd, (value) => { model.startingRealEstateAssetsUsd = value; });
+  });
+  els.realEstateGrowth.addEventListener("change", () => {
+    stagePercentInput(els.realEstateGrowth, (value) => { model.realEstateGrowth = value; });
+  });
+  els.housePurchaseYear.addEventListener("change", () => {
+    stageNumberInput(els.housePurchaseYear, (value) => { model.housePurchaseYear = value; });
+  });
+  els.houseValue.addEventListener("change", () => {
+    stageCurrencyInput(els.houseValue, (value) => { model.houseValue = value; });
+  });
+  els.houseDownPaymentPct.addEventListener("change", () => {
+    stagePercentInput(els.houseDownPaymentPct, (value) => { model.houseDownPaymentPct = value; });
+  });
+  els.mortgageTermYears.addEventListener("change", () => {
+    stageNumberInput(els.mortgageTermYears, (value) => { model.mortgageTermYears = value; });
+  });
+  els.mortgageInterestRate.addEventListener("change", () => {
+    stagePercentInput(els.mortgageInterestRate, (value) => { model.mortgageInterestRate = value; });
   });
   els.applyPartner.addEventListener("change", () => {
     model.applyPartner = els.applyPartner.checked;
