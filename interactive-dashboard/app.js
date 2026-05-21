@@ -1,5 +1,5 @@
 const YEARS = Array.from({ length: 11 }, (_, index) => 2025 + index);
-const STORAGE_KEY = "financial-dashboard-model-v6";
+const STORAGE_KEY = "financial-dashboard-model-v7";
 const CPI_SERIES = {
   US: { id: "CUUR0000SA0", label: "US CPI-U" },
   CA: { id: "CUURS49BSA0", label: "CA CPI-U proxy (San Francisco-Oakland-Hayward)" },
@@ -123,8 +123,8 @@ const defaultModel = {
   scenario: "Base",
   displayCurrency: "USD",
   cadUsdFx: 0.73,
-  startingInvestmentAssetsUsd: 2000000,
-  startingRealEstateAssetsUsd: 0,
+  startingInvestmentAssetsUsd: 1600000,
+  startingRealEstateAssetsUsd: 400000,
   investmentReturn: 0.10,
   realEstateGrowth: 0.04,
   housePurchaseYear: 2028,
