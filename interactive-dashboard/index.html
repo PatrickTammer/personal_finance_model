@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>10-Year Financial Dashboard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">2025-2035</p>
+          <h1>10-Year Financial Model</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="ghost-button" id="resetModel" type="button">Reset</button>
+          <div class="tab-switcher" role="tablist" aria-label="Model tabs">
+            <button class="tab-button active" type="button" role="tab" aria-selected="true" data-tab="assumptions">
+              Assumptions
+            </button>
+            <button class="tab-button" type="button" role="tab" aria-selected="false" data-tab="dashboard">
+              Dashboard
+            </button>
+            <button class="tab-button" type="button" role="tab" aria-selected="false" data-tab="taxBrackets">
+              Tax Brackets
+            </button>
+            <button class="tab-button" type="button" role="tab" aria-selected="false" data-tab="wealthStats">
+              Wealth Stats
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section class="tab-panel active" id="assumptionsPanel" role="tabpanel">
+          <div class="assumption-grid">
+            <section class="panel controls-panel">
+              <div class="panel-heading">
+                <h2>Model Controls</h2>
+                <span id="modelStatus" class="status-pill">OK</span>
+              </div>
+              <div class="control-grid">
+                <label>
+                  <span>Scenario</span>
+                  <select id="scenario"></select>
+                </label>
+                <label>
+                  <span>Display currency</span>
+                  <select id="displayCurrency">
+                    <option value="USD">USD</option>
+                    <option value="CAD">CAD</option>
+                  </select>
+                </label>
+                <label>
+                  <span>USD per CAD</span>
+                  <input id="cadUsdFx" type="number" step="0.01" min="0" />
+                </label>
+                <label>
+                  <span>2025 starting assets USD</span>
+                  <input id="startingAssetsUsd" type="text" inputmode="decimal" />
+                </label>
+                <label>
+                  <span>2025 base gross salary</span>
+                  <input id="baseGrossSalary" type="text" inputmode="decimal" />
+                </label>
+                <label>
+                  <span>Gross salary growth</span>
+                  <input id="salaryGrowth" type="text" inputmode="decimal" />
+                </label>
+                <label>
+                  <span>Investment return</span>
+                  <input id="investmentReturn" type="text" inputmode="decimal" />
+                </label>
+                <label>
+                  <span>CPI source</span>
+                  <select id="cpiSource">
+                    <option value="US">US CPI-U</option>
+                    <option value="CA">CA CPI-U proxy</option>
+                  </select>
+                </label>
+                <label>
+                  <span>CPI / expense growth</span>
+                  <input id="cpi" type="text" inputmode="decimal" />
+                </label>
+                <label>
+                  <span>2025 core living expenses</span>
+                  <input id="baseCoreExpenses" type="text" inputmode="decimal" />
+                </label>
+                <label>
+                  <span>Tax filing status</span>
+                  <select id="taxFilingStatus">
+                    <option value="single">Single</option>
+                    <option value="marriedJoint">Married filing jointly</option>
+                    <option value="headOfHousehold">Head of household</option>
+                  </select>
+                </label>
+                <div class="toggle-pair">
+                  <label class="toggle-row">
+                    <span>Life events</span>
+                    <input id="applyLifeEvents" type="checkbox" />
+                  </label>
+                  <label class="toggle-row">
+                    <span>Partner cash flow</span>
+                    <input id="applyPartner" type="checkbox" />
+                  </label>
+                </div>
+                <button class="refresh-button" id="refreshInputs" type="button">Refresh model</button>
+              </div>
+              <p class="refresh-status" id="refreshStatus">Edits are staged. Refresh applies inputs, pulls USD/CAD from Frankfurter, pulls CPI from BLS, and recalculates the model.</p>
+            </section>
+
+            <section class="panel scenario-panel">
+              <div class="panel-heading">
+                <h2>Scenario Multipliers</h2>
+              </div>
+              <div class="table-wrap compact">
+                <table id="scenarioTable"></table>
+              </div>
+            </section>
+          </div>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>Annual Career, Pay, Tax, and Expense Model</h2>
+            </div>
+            <div class="table-wrap">
+              <table id="annualInputsTable" class="wide-table"></table>
+            </div>
+          </section>
+
+          <section class="split-section">
+            <div class="panel">
+              <div class="panel-heading">
+                <h2>Life Events and Large Cash Flow Toggles</h2>
+              </div>
+              <div class="table-wrap">
+                <table id="eventsTable"></table>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-heading">
+                <h2>Starting Assets</h2>
+              </div>
+              <div class="table-wrap compact">
+                <table id="assetsTable"></table>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section class="tab-panel" id="dashboardPanel" role="tabpanel">
+          <section class="kpi-grid" id="kpiGrid"></section>
+
+          <section class="dashboard-grid">
+            <article class="chart-panel span-2">
+              <div class="panel-heading">
+                <h2>Salary, Net Income, and Investable Cash Flow</h2>
+              </div>
+              <div id="incomeChart" class="chart"></div>
+            </article>
+            <article class="chart-panel">
+              <div class="panel-heading">
+                <h2>Taxes, Expenses, and Life Events</h2>
+              </div>
+              <div id="cashOutChart" class="chart"></div>
+            </article>
+            <article class="chart-panel span-3">
+              <div class="panel-heading">
+                <h2>Net Assets: Nominal vs. 2025 USD</h2>
+              </div>
+              <div id="assetsChart" class="chart large"></div>
+            </article>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>Annual Projection</h2>
+              <span class="status-pill">Formula-driven</span>
+            </div>
+            <div class="table-wrap">
+              <table id="projectionTable" class="wide-table"></table>
+            </div>
+          </section>
+        </section>
+
+        <section class="tab-panel" id="taxBracketsPanel" role="tabpanel">
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>Tax Bracket Lookup Tables</h2>
+              <span class="status-pill">2025</span>
+            </div>
+            <div id="taxBracketContent" class="tax-bracket-content"></div>
+          </section>
+        </section>
+
+        <section class="tab-panel" id="wealthStatsPanel" role="tabpanel">
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>U.S. Wealth Percentile Statistics</h2>
+              <span class="status-pill">SCF 2022</span>
+            </div>
+            <div id="wealthStatsContent" class="tax-bracket-content"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
