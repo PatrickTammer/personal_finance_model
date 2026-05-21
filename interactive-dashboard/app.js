@@ -1,5 +1,5 @@
 const YEARS = Array.from({ length: 11 }, (_, index) => 2025 + index);
-const STORAGE_KEY = "financial-dashboard-model-v5";
+const STORAGE_KEY = "financial-dashboard-model-v6";
 const CPI_SERIES = {
   US: { id: "CUUR0000SA0", label: "US CPI-U" },
   CA: { id: "CUURS49BSA0", label: "CA CPI-U proxy (San Francisco-Oakland-Hayward)" },
@@ -139,13 +139,13 @@ const defaultModel = {
   applyPartner: true,
   applyLifeEvents: true,
   scenarios: [
-    { name: "Downside", compensation: 0.85, expenses: 1.05, returnAdj: -0.02 },
-    { name: "Base", compensation: 1, expenses: 1, returnAdj: 0 },
-    { name: "Upside", compensation: 1.15, expenses: 0.95, returnAdj: 0.02 },
+    { name: "Downside", salaryGrowth: 0.07, expenses: 1.05, returnAdj: -0.02 },
+    { name: "Base", salaryGrowth: 0.10, expenses: 1, returnAdj: 0 },
+    { name: "Upside", salaryGrowth: 0.15, expenses: 0.95, returnAdj: 0.02 },
   ],
   annual: {
-    baseGrossSalary: 600000,
-    salaryGrowth: 0.15,
+    baseGrossSalary: 520000,
+    salaryGrowth: 0.10,
     baseCoreExpenses: 150000,
     partnerCf: [135000, 135000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     career: ["Lead", "Lead", "Principal", "Principal", "Head", "Head", "Head", "Dir", "Dir", "Dir", "Senior Director"],
@@ -242,6 +242,10 @@ function normalizeModel(raw) {
   if (!Number.isFinite(Number(next.houseDownPaymentPct))) next.houseDownPaymentPct = defaultModel.houseDownPaymentPct;
   if (!Number.isFinite(Number(next.mortgageTermYears))) next.mortgageTermYears = defaultModel.mortgageTermYears;
   if (!Number.isFinite(Number(next.mortgageInterestRate))) next.mortgageInterestRate = defaultModel.mortgageInterestRate;
+  next.scenarios = next.scenarios.map((scenario, index) => ({
+    ...scenario,
+    salaryGrowth: Number.isFinite(Number(scenario.salaryGrowth)) ? Number(scenario.salaryGrowth) : defaultModel.scenarios[index]?.salaryGrowth || defaultModel.annual.salaryGrowth,
+  }));
   next.lifeEvents = (raw?.lifeEvents || next.lifeEvents).map((event, index) => ({
     ...clone(defaultModel.lifeEvents[index] || defaultModel.lifeEvents.at(-1)),
     ...event,
@@ -396,6 +400,11 @@ function selectedScenario() {
   return model.scenarios.find((scenario) => scenario.name === model.scenario) || model.scenarios[1];
 }
 
+function selectedSalaryGrowth() {
+  const scenarioGrowth = numberValue(selectedScenario().salaryGrowth);
+  return scenarioGrowth || numberValue(model.annual.salaryGrowth);
+}
+
 function calculateProjection() {
   const scenario = selectedScenario();
   let investmentAssetsUsd = numberValue(model.startingInvestmentAssetsUsd);
@@ -411,8 +420,8 @@ function calculateProjection() {
     const beginningNetAssets = beginningInvestmentAssets + beginningRealEstateAssets;
     const baseGrossSalary = index === 0
       ? numberValue(model.annual.baseGrossSalary)
-      : priorGrossSalary * (1 + numberValue(model.annual.salaryGrowth));
-    const grossSalary = baseGrossSalary * scenario.compensation;
+      : priorGrossSalary * (1 + selectedSalaryGrowth());
+    const grossSalary = baseGrossSalary;
     priorGrossSalary = baseGrossSalary;
     const taxStatus = model.taxFilingStatus;
     const federalTaxes = calculateProgressiveTax(grossSalary, TAX_BRACKETS.federal.brackets[taxStatus]);
@@ -474,7 +483,7 @@ function calculateProjection() {
     return {
       year,
       grossSalary,
-      salaryGrowth: index === 0 ? 0 : numberValue(model.annual.salaryGrowth),
+      salaryGrowth: index === 0 ? 0 : selectedSalaryGrowth(),
       federalTaxes,
       californiaTaxes,
       ficaTaxes,
@@ -524,16 +533,17 @@ function inputCell(value, onChange, type = "number", step = "1") {
   const td = document.createElement("td");
   td.className = "input-cell";
   const input = document.createElement("input");
-  input.type = type === "currency" ? "text" : type;
-  if (type === "currency") input.inputMode = "decimal";
+  input.type = type === "currency" || type === "percent" ? "text" : type;
+  if (type === "currency" || type === "percent") input.inputMode = "decimal";
   if (type === "currency") input.classList.add("currency-input");
   if (type === "number") input.step = step;
-  input.value = type === "number" ? formatInputNumber(value) : type === "currency" ? formatCurrencyInput(value, "USD") : value;
+  input.value = type === "number" ? formatInputNumber(value) : type === "currency" ? formatCurrencyInput(value, "USD") : type === "percent" ? formatPercentInput(value) : value;
   input.addEventListener("change", () => {
-    const nextValue = type === "number" ? numberValue(input.value) : type === "currency" ? parseCurrency(input.value) : input.value;
+    const nextValue = type === "number" ? numberValue(input.value) : type === "currency" ? parseCurrency(input.value) : type === "percent" ? parsePercentInput(input.value) : input.value;
     onChange(nextValue);
     if (type === "number") input.value = formatInputNumber(nextValue);
     if (type === "currency") input.value = formatCurrencyInput(nextValue, "USD");
+    if (type === "percent") input.value = formatPercentInput(nextValue);
     saveModel();
     markPending();
   });
@@ -564,7 +574,7 @@ function renderControls() {
   els.displayCurrency.value = model.displayCurrency;
   els.cadUsdFx.value = formatInputNumber(model.cadUsdFx);
   els.baseGrossSalary.value = formatCurrencyInput(model.annual.baseGrossSalary, "USD");
-  els.salaryGrowth.value = formatPercentInput(model.annual.salaryGrowth);
+  els.salaryGrowth.value = formatPercentInput(selectedSalaryGrowth());
   els.investmentReturn.value = formatPercentInput(model.investmentReturn);
   els.taxFilingStatus.value = model.taxFilingStatus;
   els.cpiSource.value = model.cpiSource;
@@ -580,21 +590,21 @@ function renderControls() {
   els.mortgageInterestRate.value = formatPercentInput(model.mortgageInterestRate);
   els.applyPartner.checked = model.applyPartner;
   els.applyLifeEvents.checked = model.applyLifeEvents;
-  els.refreshStatus.textContent = model.lastRefresh || "Refresh pulls USD/CAD from Frankfurter and CPI from BLS.";
+  els.refreshStatus.textContent = model.lastRefresh || "Refresh pulls USD/CAD from Frankfurter, CPI from BLS, and mortgage rates from FRED/Freddie Mac PMMS.";
 }
 
 function renderScenarioTable() {
   els.scenarioTable.innerHTML = `
-    <thead><tr><th>Case</th><th>Compensation</th><th>Expenses</th><th>Return Adj.</th></tr></thead>
+    <thead><tr><th>Case</th><th>Salary Growth</th><th>Expenses</th><th>Return Adj.</th></tr></thead>
     <tbody></tbody>
   `;
   const tbody = els.scenarioTable.querySelector("tbody");
   model.scenarios.forEach((scenario) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `<td>${scenario.name}</td>`;
-    tr.append(inputCell(scenario.compensation, (value) => { scenario.compensation = value; }, "number", "0.001"));
+    tr.append(inputCell(scenario.salaryGrowth, (value) => { scenario.salaryGrowth = value; }, "percent"));
     tr.append(inputCell(scenario.expenses, (value) => { scenario.expenses = value; }, "number", "0.001"));
-    tr.append(inputCell(scenario.returnAdj, (value) => { scenario.returnAdj = value; }, "number", "0.001"));
+    tr.append(inputCell(scenario.returnAdj, (value) => { scenario.returnAdj = value; }, "percent"));
     tbody.append(tr);
   });
 }
@@ -724,7 +734,7 @@ function renderKpis(projection) {
   const finalYear = projection.at(-1);
   const avgSavings = projection.reduce((sum, row) => sum + row.savingsRate, 0) / projection.length;
   const kpis = [
-    ["Selected Case", model.scenario, `${percent(selectedScenario().compensation)} comp multiplier`],
+    ["Selected Case", model.scenario, `${percent(selectedSalaryGrowth())} salary growth`],
     [`2035 Gross Salary (${model.displayCurrency})`, money(finalYear.grossSalary), finalYear.career],
     [`2035 Net Income (${model.displayCurrency})`, money(finalYear.netIncome), "After modeled taxes"],
     ["Avg. Savings Rate", percent(avgSavings), "Savings inflow / gross salary"],
@@ -1057,9 +1067,13 @@ function render() {
 
 async function refreshMarketInputs() {
   els.refreshInputs.disabled = true;
-  els.refreshStatus.textContent = "Refreshing FX and CPI...";
+  els.refreshStatus.textContent = "Refreshing FX, CPI, and mortgage rates...";
   const messages = [];
-  const [fxRefresh, cpiRefresh] = await Promise.allSettled([fetchCadUsdFx(), fetchCpiRate(model.cpiSource)]);
+  const [fxRefresh, cpiRefresh, mortgageRefresh] = await Promise.allSettled([
+    fetchCadUsdFx(),
+    fetchCpiRate(model.cpiSource),
+    fetchMortgageRate(numberValue(model.mortgageTermYears)),
+  ]);
   if (fxRefresh.status === "fulfilled") {
     const fxResult = fxRefresh.value;
     model.cadUsdFx = fxResult.usdPerCad;
@@ -1073,6 +1087,13 @@ async function refreshMarketInputs() {
     messages.push(`${cpiResult.label} ${percent(cpiResult.rate)} YoY (${cpiResult.period})`);
   } else {
     messages.push(`CPI unchanged: ${cpiRefresh.reason.message}`);
+  }
+  if (mortgageRefresh.status === "fulfilled") {
+    const mortgageResult = mortgageRefresh.value;
+    model.mortgageInterestRate = mortgageResult.rate;
+    messages.push(`${mortgageResult.label} ${percent(mortgageResult.rate)} (${mortgageResult.date})`);
+  } else {
+    messages.push(`Mortgage rate unchanged: ${mortgageRefresh.reason.message}`);
   }
   model.lastRefresh = `Updated ${new Date().toLocaleString()}: ${messages.join("; ")}.`;
   saveModel();
@@ -1111,6 +1132,56 @@ async function fetchCpiRate(source) {
   };
 }
 
+async function fetchMortgageRate(termYears) {
+  const [fifteen, thirty] = await Promise.all([
+    fetchFredMortgageSeries("MORTGAGE15US"),
+    fetchFredMortgageSeries("MORTGAGE30US"),
+  ]);
+  const term = Math.max(1, numberValue(termYears || 30));
+  let rate = thirty.rate;
+  let label = "30-year fixed mortgage rate";
+  if (term <= 15) {
+    rate = fifteen.rate;
+    label = "15-year fixed mortgage rate";
+  } else if (term < 30) {
+    const weight = (term - 15) / 15;
+    rate = fifteen.rate + (thirty.rate - fifteen.rate) * weight;
+    label = `${term}-year interpolated fixed mortgage rate`;
+  }
+  return {
+    rate,
+    label,
+    date: thirty.date === fifteen.date ? thirty.date : `${fifteen.date}/${thirty.date}`,
+  };
+}
+
+async function fetchFredMortgageSeries(seriesId) {
+  const fredUrl = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`;
+  let response;
+  try {
+    response = await fetch(fredUrl);
+  } catch {
+    response = null;
+  }
+  if (!response || !response.ok) {
+    response = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(fredUrl)}`);
+  }
+  if (!response.ok) throw new Error("Mortgage rate source did not respond");
+  const csv = await response.text();
+  const rows = csv.trim().split(/\r?\n/).slice(1)
+    .map((line) => {
+      const [date, value] = line.split(",");
+      return { date, value: Number(value) };
+    })
+    .filter((row) => row.date && Number.isFinite(row.value));
+  const latest = rows.at(-1);
+  if (!latest) throw new Error("Mortgage rate response was empty");
+  return {
+    date: latest.date,
+    rate: latest.value / 100,
+  };
+}
+
 function wireEvents() {
   document.querySelectorAll(".tab-button").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1141,7 +1212,11 @@ function wireEvents() {
     stageCurrencyInput(els.baseGrossSalary, (value) => { model.annual.baseGrossSalary = value; });
   });
   els.salaryGrowth.addEventListener("change", () => {
-    stagePercentInput(els.salaryGrowth, (value) => { model.annual.salaryGrowth = value; });
+    stagePercentInput(els.salaryGrowth, (value) => {
+      const scenario = selectedScenario();
+      scenario.salaryGrowth = value;
+      model.annual.salaryGrowth = value;
+    });
   });
   els.investmentReturn.addEventListener("change", () => {
     stagePercentInput(els.investmentReturn, (value) => { model.investmentReturn = value; });

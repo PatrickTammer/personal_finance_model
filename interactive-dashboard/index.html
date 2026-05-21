@@ -66,10 +66,6 @@
                   <input id="salaryGrowth" type="text" inputmode="decimal" />
                 </label>
                 <label>
-                  <span>Investment return</span>
-                  <input id="investmentReturn" type="text" inputmode="decimal" />
-                </label>
-                <label>
                   <span>CPI source</span>
                   <select id="cpiSource">
                     <option value="US">US CPI-U</option>
@@ -97,6 +93,10 @@
                 <label>
                   <span>2025 investment assets USD</span>
                   <input id="startingInvestmentAssetsUsd" type="text" inputmode="decimal" />
+                </label>
+                <label>
+                  <span>Investment return</span>
+                  <input id="investmentReturn" type="text" inputmode="decimal" />
                 </label>
                 <label>
                   <span>2025 real estate assets USD</span>
@@ -142,7 +142,7 @@
                 </div>
                 <button class="refresh-button" id="refreshInputs" type="button">Refresh model</button>
               </div>
-              <p class="refresh-status" id="refreshStatus">Edits are staged. Refresh applies inputs, pulls USD/CAD from Frankfurter, pulls CPI from BLS, and recalculates the model.</p>
+              <p class="refresh-status" id="refreshStatus">Edits are staged. Refresh applies inputs, pulls USD/CAD from Frankfurter, pulls CPI from BLS, pulls mortgage rates from FRED/Freddie Mac PMMS, and recalculates the model.</p>
             </section>
 
             <section class="panel scenario-panel">
