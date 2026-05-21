@@ -1,5 +1,5 @@
 const YEARS = Array.from({ length: 11 }, (_, index) => 2025 + index);
-const STORAGE_KEY = "financial-dashboard-model-v7";
+const STORAGE_KEY = "financial-dashboard-model-v8";
 const CPI_SERIES = {
   US: { id: "CUUR0000SA0", label: "US CPI-U" },
   CA: { id: "CUURS49BSA0", label: "CA CPI-U proxy (San Francisco-Oakland-Hayward)" },
@@ -156,8 +156,7 @@ const defaultModel = {
     { event: "Sell cottage", enabled: true, type: "One-time", start: 2028, end: 2028, amount: 86956.52, notes: "Inflow" },
     { event: "Wedding", enabled: true, type: "One-time", start: 2026, end: 2026, amount: -15000, notes: "One-time cost" },
     { event: "Buy car", enabled: true, type: "One-time", start: 2026, end: 2026, amount: -30000, notes: "One-time cost" },
-    { event: "House down payment", enabled: false, type: "One-time", start: 2028, end: 2028, amount: 0, notes: "Modeled in mortgage inputs" },
-    { event: "House mortgage delta vs. rent", enabled: false, type: "Recurring", start: 2028, end: 2035, amount: 0, notes: "Modeled in mortgage inputs" },
+    { event: "House purchase", enabled: true, type: "Recurring", start: 2028, end: 2035, amount: 0, notes: "Pulls Home purchase and mortgage inputs" },
     { event: "1st kid", enabled: true, type: "Recurring", start: 2029, end: 2035, amount: -30000, notes: "Recurring child cost" },
     { event: "2nd kid", enabled: true, type: "Recurring", start: 2031, end: 2035, amount: -30000, notes: "Recurring child cost" },
   ],
@@ -179,7 +178,6 @@ const els = {
   salaryGrowth: document.querySelector("#salaryGrowth"),
   investmentReturn: document.querySelector("#investmentReturn"),
   realEstateGrowth: document.querySelector("#realEstateGrowth"),
-  housePurchaseYear: document.querySelector("#housePurchaseYear"),
   houseValue: document.querySelector("#houseValue"),
   houseDownPaymentPct: document.querySelector("#houseDownPaymentPct"),
   mortgageTermYears: document.querySelector("#mortgageTermYears"),
@@ -408,14 +406,28 @@ function selectedSalaryGrowth() {
   return scenarioGrowth || numberValue(model.annual.salaryGrowth);
 }
 
+function isHouseEvent(event) {
+  return ["House purchase", "House down payment", "House mortgage delta vs. rent"].includes(event.event);
+}
+
+function selectedHouseEvent() {
+  return model.lifeEvents.find((event) => event.event === "House purchase")
+    || model.lifeEvents.find((event) => isHouseEvent(event));
+}
+
 function calculateProjection() {
   const scenario = selectedScenario();
   let investmentAssetsUsd = numberValue(model.startingInvestmentAssetsUsd);
   let realEstateAssetsUsd = numberValue(model.startingRealEstateAssetsUsd);
   let mortgageBalance = 0;
   let yearsPaid = 0;
+  let purchasedHouseValue = 0;
   let priorGrossSalary = 0;
   let priorCoreExpenses = 0;
+  const houseEvent = selectedHouseEvent();
+  const houseEnabled = Boolean(model.applyLifeEvents && houseEvent?.enabled);
+  const houseStartYear = houseEnabled ? numberValue(houseEvent.start) : numberValue(model.housePurchaseYear);
+  const houseEndYear = houseEnabled ? numberValue(houseEvent.end) : numberValue(model.housePurchaseYear);
 
   return YEARS.map((year, index) => {
     const beginningInvestmentAssets = investmentAssetsUsd;
@@ -444,6 +456,7 @@ function calculateProjection() {
     const lifeEvents = model.applyLifeEvents
       ? model.lifeEvents.reduce((sum, event) => {
           if (!event.enabled) return sum;
+          if (isHouseEvent(event)) return sum;
           if (event.type === "One-time" && year !== numberValue(event.start)) return sum;
           if (event.type === "Recurring" && (year < numberValue(event.start) || year > numberValue(event.end))) return sum;
           return sum + numberValue(event.amount);
@@ -456,14 +469,21 @@ function calculateProjection() {
     const savingsRate = grossSalary === 0 ? 0 : preHousingSavingsInflow / grossSalary;
     const returnRate = model.investmentReturn + scenario.returnAdj;
     const capitalGains = beginningInvestmentAssets * returnRate;
-    const realEstateGrowth = beginningRealEstateAssets * numberValue(model.realEstateGrowth);
+    const realEstateGrowthRate = numberValue(model.realEstateGrowth);
+    const realEstateGrowth = beginningRealEstateAssets * realEstateGrowthRate;
 
-    const housePurchase = year === numberValue(model.housePurchaseYear);
+    const housePurchase = houseEnabled && year === houseStartYear;
+    const houseActive = houseEnabled && year >= houseStartYear && year <= houseEndYear;
     const houseValue = housePurchase ? numberValue(model.houseValue) : 0;
     const downPayment = housePurchase ? houseValue * numberValue(model.houseDownPaymentPct) : 0;
-    if (housePurchase) mortgageBalance += Math.max(0, houseValue - downPayment);
+    if (housePurchase) {
+      mortgageBalance += Math.max(0, houseValue - downPayment);
+      purchasedHouseValue += houseValue;
+    } else if (purchasedHouseValue > 0 && houseActive) {
+      purchasedHouseValue *= 1 + realEstateGrowthRate;
+    }
 
-    const mortgageEligible = mortgageBalance > 0 && year >= numberValue(model.housePurchaseYear) && yearsPaid < numberValue(model.mortgageTermYears);
+    const mortgageEligible = houseActive && mortgageBalance > 0 && yearsPaid < numberValue(model.mortgageTermYears);
     const scheduledMortgagePayment = mortgageEligible
       ? annualMortgagePayment(mortgageBalance, model.mortgageInterestRate, numberValue(model.mortgageTermYears) - yearsPaid)
       : 0;
@@ -474,8 +494,8 @@ function calculateProjection() {
       mortgageBalance -= mortgagePrincipal;
       yearsPaid += 1;
     }
-    const propertyTaxes = year >= numberValue(model.housePurchaseYear)
-      ? (beginningRealEstateAssets + realEstateGrowth + downPayment) * numberValue(model.propertyTaxRate)
+    const propertyTaxes = houseActive
+      ? purchasedHouseValue * numberValue(model.propertyTaxRate)
       : 0;
 
     const savingsInflow = preHousingSavingsInflow - downPayment - mortgagePayment - propertyTaxes;
@@ -590,7 +610,6 @@ function renderControls() {
   els.startingInvestmentAssetsUsd.value = formatCurrencyInput(model.startingInvestmentAssetsUsd, "USD");
   els.startingRealEstateAssetsUsd.value = formatCurrencyInput(model.startingRealEstateAssetsUsd, "USD");
   els.realEstateGrowth.value = formatPercentInput(model.realEstateGrowth);
-  els.housePurchaseYear.value = formatInputNumber(model.housePurchaseYear);
   els.houseValue.value = formatCurrencyInput(model.houseValue, "USD");
   els.houseDownPaymentPct.value = formatPercentInput(model.houseDownPaymentPct);
   els.mortgageTermYears.value = formatInputNumber(model.mortgageTermYears);
@@ -677,6 +696,7 @@ function renderEventsTable() {
   `;
   const tbody = els.eventsTable.querySelector("tbody");
   model.lifeEvents.forEach((event) => {
+    const houseRow = event.event === "House purchase";
     const tr = document.createElement("tr");
     tr.append(inputCell(event.event, (value) => { event.event = value; }, "text"));
 
@@ -693,28 +713,36 @@ function renderEventsTable() {
     enabled.append(checkbox);
     tr.append(enabled);
 
-    const typeCell = document.createElement("td");
-    typeCell.className = "input-cell";
-    const select = document.createElement("select");
-    ["One-time", "Recurring"].forEach((optionValue) => {
-      const option = document.createElement("option");
-      option.value = optionValue;
-      option.textContent = optionValue;
-      select.append(option);
-    });
-    select.value = event.type;
-    select.addEventListener("change", () => {
-      event.type = select.value;
-      if (event.type === "One-time") event.end = event.start;
-      saveModel();
-      markPending();
-    });
-    typeCell.append(select);
-    tr.append(typeCell);
+    if (houseRow) {
+      tr.append(formulaCell("Home inputs", (value) => value, "text-cell"));
+    } else {
+      const typeCell = document.createElement("td");
+      typeCell.className = "input-cell";
+      const select = document.createElement("select");
+      ["One-time", "Recurring"].forEach((optionValue) => {
+        const option = document.createElement("option");
+        option.value = optionValue;
+        option.textContent = optionValue;
+        select.append(option);
+      });
+      select.value = event.type;
+      select.addEventListener("change", () => {
+        event.type = select.value;
+        if (event.type === "One-time") event.end = event.start;
+        saveModel();
+        markPending();
+      });
+      typeCell.append(select);
+      tr.append(typeCell);
+    }
 
     tr.append(inputCell(event.start, (value) => { event.start = value; }, "number"));
     tr.append(inputCell(event.end, (value) => { event.end = value; }, "number"));
-    tr.append(inputCell(event.amount, (value) => { event.amount = value; }, "currency"));
+    if (houseRow) {
+      tr.append(formulaCell("Home inputs", (value) => value, "text-cell"));
+    } else {
+      tr.append(inputCell(event.amount, (value) => { event.amount = value; }, "currency"));
+    }
     tr.append(inputCell(event.notes, (value) => { event.notes = value; }, "text"));
     tbody.append(tr);
   });
@@ -1255,9 +1283,6 @@ function wireEvents() {
   });
   els.realEstateGrowth.addEventListener("change", () => {
     stagePercentInput(els.realEstateGrowth, (value) => { model.realEstateGrowth = value; });
-  });
-  els.housePurchaseYear.addEventListener("change", () => {
-    stageNumberInput(els.housePurchaseYear, (value) => { model.housePurchaseYear = value; });
   });
   els.houseValue.addEventListener("change", () => {
     stageCurrencyInput(els.houseValue, (value) => { model.houseValue = value; });
