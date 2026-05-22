@@ -1,5 +1,5 @@
 const YEARS = Array.from({ length: 11 }, (_, index) => 2026 + index);
-const STORAGE_KEY = "financial-dashboard-model-v10";
+const STORAGE_KEY = "financial-dashboard-model-v11";
 const CPI_SERIES = {
   US: { id: "CUUR0000SA0", label: "US CPI-U" },
   CA: { id: "CUURS49BSA0", label: "CA CPI-U proxy (San Francisco-Oakland-Hayward)" },
@@ -145,7 +145,7 @@ const defaultModel = {
     { name: "Upside", salaryGrowth: 0.15, expenses: 0.95, returnAdj: 0.02 },
   ],
   annual: {
-    baseGrossSalary: 540000,
+    baseGrossSalary: 600000,
     salaryGrowth: 0.12,
     baseCoreExpenses: 150000,
     partnerCf: [135000, 135000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
