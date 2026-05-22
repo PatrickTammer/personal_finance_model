@@ -1,5 +1,5 @@
-const YEARS = Array.from({ length: 11 }, (_, index) => 2025 + index);
-const STORAGE_KEY = "financial-dashboard-model-v9";
+const YEARS = Array.from({ length: 11 }, (_, index) => 2026 + index);
+const STORAGE_KEY = "financial-dashboard-model-v10";
 const CPI_SERIES = {
   US: { id: "CUUR0000SA0", label: "US CPI-U" },
   CA: { id: "CUURS49BSA0", label: "CA CPI-U proxy (San Francisco-Oakland-Hayward)" },
@@ -156,9 +156,9 @@ const defaultModel = {
     { event: "Sell cottage", enabled: true, type: "One-time", start: 2028, end: 2028, amount: 86956.52, notes: "Inflow" },
     { event: "Wedding", enabled: true, type: "One-time", start: 2026, end: 2026, amount: -15000, notes: "One-time cost" },
     { event: "Buy car", enabled: true, type: "One-time", start: 2026, end: 2026, amount: -30000, notes: "One-time cost" },
-    { event: "House purchase", enabled: true, type: "Recurring", start: 2028, end: 2035, amount: 0, notes: "Pulls Home purchase and mortgage inputs" },
-    { event: "1st kid", enabled: true, type: "Recurring", start: 2029, end: 2035, amount: -30000, notes: "Recurring child cost" },
-    { event: "2nd kid", enabled: true, type: "Recurring", start: 2031, end: 2035, amount: -30000, notes: "Recurring child cost" },
+    { event: "House purchase", enabled: true, type: "Recurring", start: 2028, end: 2036, amount: 0, notes: "Pulls Home purchase and mortgage inputs" },
+    { event: "1st kid", enabled: true, type: "Recurring", start: 2029, end: 2036, amount: -30000, notes: "Recurring child cost" },
+    { event: "2nd kid", enabled: true, type: "Recurring", start: 2031, end: 2036, amount: -30000, notes: "Recurring child cost" },
   ],
   assets: [
     { owner: "Michelle", currency: "CAD", value: 1141498 },
@@ -759,9 +759,9 @@ function renderAssetsTable() {
   `;
   const tbody = els.assetsTable.querySelector("tbody");
   tbody.innerHTML = `
-    <tr><td>2025 investment assets</td><td>USD</td><td><strong>${money(investmentUsd, 2, "USD")}</strong></td></tr>
-    <tr><td>2025 real estate assets</td><td>USD</td><td><strong>${money(realEstateUsd, 2, "USD")}</strong></td></tr>
-    <tr><td>2025 total assets</td><td>USD</td><td><strong>${money(startingUsd, 2, "USD")}</strong></td></tr>
+    <tr><td>2026 investment assets</td><td>USD</td><td><strong>${money(investmentUsd, 2, "USD")}</strong></td></tr>
+    <tr><td>2026 real estate assets</td><td>USD</td><td><strong>${money(realEstateUsd, 2, "USD")}</strong></td></tr>
+    <tr><td>2026 total assets</td><td>USD</td><td><strong>${money(startingUsd, 2, "USD")}</strong></td></tr>
     <tr><td>CAD equivalent</td><td>CAD</td><td><strong>${moneyFromCad(startingCad, 2, "CAD")}</strong></td></tr>
     <tr><td>Dashboard display</td><td>${model.displayCurrency}</td><td><strong>${model.displayCurrency === "CAD" ? moneyFromCad(startingCad) : money(startingUsd)}</strong></td></tr>
   `;
@@ -772,11 +772,11 @@ function renderKpis(projection) {
   const avgSavings = projection.reduce((sum, row) => sum + row.savingsRate, 0) / projection.length;
   const kpis = [
     ["Selected Case", model.scenario, `${percent(selectedSalaryGrowth())} salary growth`],
-    [`2035 Gross Salary (${model.displayCurrency})`, money(finalYear.grossSalary), finalYear.career],
-    [`2035 Net Income (${model.displayCurrency})`, money(finalYear.netIncome), "After modeled taxes"],
+    [`2036 Gross Salary (${model.displayCurrency})`, money(finalYear.grossSalary), finalYear.career],
+    [`2036 Net Income (${model.displayCurrency})`, money(finalYear.netIncome), "After modeled taxes"],
     ["Avg. Savings Rate", percent(avgSavings), "Savings inflow / gross salary"],
-    [`2035 Net Assets (${model.displayCurrency})`, model.displayCurrency === "CAD" ? moneyFromCad(finalYear.liquidCad) : money(finalYear.liquidUsd), "Nominal"],
-    [`2035 Real (${model.displayCurrency})`, money(finalYear.realUsd), "2025 dollars"],
+    [`2036 Net Assets (${model.displayCurrency})`, model.displayCurrency === "CAD" ? moneyFromCad(finalYear.liquidCad) : money(finalYear.liquidUsd), "Nominal"],
+    [`2036 Real (${model.displayCurrency})`, money(finalYear.realUsd), "2026 dollars"],
   ];
   els.kpiGrid.innerHTML = kpis
     .map(([label, value, detail]) => `<article class="kpi-card"><span>${label}</span><strong>${value}</strong><small>${detail}</small></article>`)
@@ -813,7 +813,7 @@ function renderProjectionTable(projection) {
     ["Savings rate", "savingsRate", percent],
     [`Liquid assets (${model.displayCurrency})`, "displayNetAssets", (value) => value.toLocaleString("en-US", { style: "currency", currency: model.displayCurrency, maximumFractionDigits: 2, minimumFractionDigits: 0 })],
     ["U.S. wealth percentile", "wealthPercentile", formatPercentile],
-    [`Liquid assets (2025 ${model.displayCurrency})`, "realUsd", money],
+    [`Liquid assets (2026 ${model.displayCurrency})`, "realUsd", money],
     ["Career milestone", "career", (value) => value],
     ["Personal event", "personalEvent", (value) => value || ""],
   ];
@@ -1042,7 +1042,7 @@ function renderCharts(projection) {
 
   lineChart(els.assetsChart, [
     { name: `Net Assets ${model.displayCurrency}`, className: "line-primary", values: projection.map((row) => row.displayNetAssets) },
-    { name: `Net Assets 2025 ${model.displayCurrency}`, className: "line-secondary", values: projection.map((row) => displayAmount(row.realUsd)) },
+    { name: `Net Assets 2026 ${model.displayCurrency}`, className: "line-secondary", values: projection.map((row) => displayAmount(row.realUsd)) },
   ], { height: 300, label: "Net assets line chart" });
 }
 
